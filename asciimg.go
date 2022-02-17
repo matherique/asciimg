@@ -25,7 +25,6 @@ func main() {
 
 	if len(fileimage) == 0 {
 		log.Fatalf("missing image")
-		os.Exit(1)
 	}
 
 	f, err := os.Open(fileimage)
@@ -48,7 +47,6 @@ func main() {
 
 	if size > w {
 		log.Fatal("this image is too small")
-		return
 	}
 
 	f.Seek(0, 0)
