@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"image"
 	_ "image/jpeg"
@@ -11,20 +12,23 @@ import (
 )
 
 const (
-	light              = "Ñ@#W$9876543210?!abc;:+=-,._    "
-	MAX_TO_OPTIMIZE_2X = 100
-	MAX_TO_OPTIMIZE_3X = 200
-	MAX_TO_OPTIMIZE_4X = 500
-	MAX_TO_OPTIMIZE_5X = 1000
+	light = "Ñ@#W$9876543210?!abc;:+=-,._    "
 )
 
 func main() {
-	if len(os.Args) != 2 {
-		log.Fatal("Usage: asciimg <image>")
-	}
-	fn := os.Args[1]
+	var size int
+	var fileimage string
+	flag.IntVar(&size, "s", 0, "size of the result. This value should not be less then the image size. (default it the image size)")
+	flag.StringVar(&fileimage, "image", "", "image file")
 
-	f, err := os.Open(fn)
+	flag.Parse()
+
+	if len(fileimage) == 0 {
+		log.Fatalf("missing image")
+		os.Exit(1)
+	}
+
+	f, err := os.Open(fileimage)
 
 	if err != nil {
 		log.Fatalf("could not open the image: %v", err)
@@ -36,6 +40,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("could not decode config the image: %v", err)
 	}
+	h, w := c.Height, c.Width
+
+	if size == 0 {
+		size = w
+	}
+
+	if size > w {
+		log.Fatal("this image is too small")
+		return
+	}
 
 	f.Seek(0, 0)
 
@@ -45,19 +59,16 @@ func main() {
 		log.Fatalf("could not decode the image: %v", err)
 	}
 
-	size := float64(len(light) - 1)
+	lightsize := float64(len(light) - 1)
 
-	h, w := c.Height, c.Width
+	mw, mh := w/size, h/size
 
-	opt := calculateOptimizeIndex(w, h)
-
-	fmt.Println(opt)
 	var line string
-	for y := 0; y < h; y += opt {
+	for y := 0; y < h; y += mh {
 		line = ""
-		for x := 0; x < w; x += opt {
-			avg := average(img, opt, x, y)
-			pos := mapRange(float64(avg), 0, 255, size, 0)
+		for x := 0; x < w; x += mw {
+			avg := average(img, x, y, mw, mh)
+			pos := mapRange(avg, 0, 255, lightsize, 0)
 			pos = math.Abs(pos)
 
 			line += string(light[int(pos)])
@@ -66,15 +77,10 @@ func main() {
 	}
 }
 
-func average(img image.Image, opt, x, y int) float64 {
-	m := 1
-	if opt > 1 {
-		m = opt - 2
-	}
-
+func average(img image.Image, x, y, mw, mh int) float64 {
 	var total int
-	for i := 0; i <= m; i++ {
-		for j := 0; j <= m; j++ {
+	for i := 0; i < mw; i++ {
+		for j := 0; j < mw; j++ {
 			clr := img.At(x+i, y+j)
 			r, g, b, _ := clr.RGBA()
 			r = r >> 8
@@ -84,22 +90,7 @@ func average(img image.Image, opt, x, y int) float64 {
 			total += int(avg)
 		}
 	}
-	return float64(total) / 9
-}
-
-func calculateOptimizeIndex(w, h int) int {
-	switch true {
-	case w > MAX_TO_OPTIMIZE_5X:
-		return 5
-	case w > MAX_TO_OPTIMIZE_4X:
-		return 4
-	case w > MAX_TO_OPTIMIZE_3X:
-		return 3
-	case w > MAX_TO_OPTIMIZE_2X:
-		return 2
-	}
-
-	return 1
+	return float64(total) / float64(mw*mh)
 }
 
 func mapRange(s, a1, a2, b1, b2 float64) float64 {
